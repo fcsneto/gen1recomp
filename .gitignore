@@ -13,6 +13,28 @@ assets/generated/
 
 # Local saves (LÖVE writes to its save dir, but keep the repo clean anyway)
 save/
+/save.lua*
+/portable.txt
+
+# User-supplied ROMs and emulator save/state files. The import scripts accept
+# ROMs from the repository root, but none of these personal game files belong
+# in Git.
+/*.gb
+/*.gbc
+/*.sav
+/*.srm
+/*.state
+
+# Per-machine livestream configuration, diagnostics, and crash artifacts.
+/.env
+/.env.*
+!/.env.example
+/*.log
+/*.dmp
+/*.tmp
+
+# Downloaded platform packages are local installation artifacts, never source.
+/*.deb
 
 __pycache__/
 *.pyc
