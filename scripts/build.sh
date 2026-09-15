@@ -348,6 +348,20 @@ build_win() {
     warn "gen1tls.dll not found: Windows zip will not support wss:// (set GEN1TLS_DLL or build native/tls_dial)"
   fi
 
+  # Optional loopback-only HTTP receiver for livestream chat. Like the TLS
+  # dialer, release CI builds this Windows Native AOT DLL ahead of the Mac
+  # packaging job; it never opens a listener unless explicitly enabled.
+  local remote_input_dll="${GEN1REMOTEINPUT_DLL:-}"
+  if [ -z "$remote_input_dll" ] && [ -f "$DIST/native/win-x64/gen1remoteinput.dll" ]; then
+    remote_input_dll="$DIST/native/win-x64/gen1remoteinput.dll"
+  fi
+  if [ -n "$remote_input_dll" ] && [ -f "$remote_input_dll" ]; then
+    cp "$remote_input_dll" "$out_dir/gen1remoteinput.dll"
+    say "bundled gen1remoteinput.dll for loopback livestream input"
+  else
+    warn "gen1remoteinput.dll not found: Windows zip will not support remote livestream input"
+  fi
+
   bundle_shader_bridge "$out_dir" "librashader_bridge.dll" win-x64
 
   # The exe's icon lives in love.exe's PE resources, so it must be patched

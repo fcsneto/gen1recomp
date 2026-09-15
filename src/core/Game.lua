@@ -5,6 +5,7 @@ local Data = require("src.core.Data")
 local FixedStep = require("src.core.FixedStep")
 local Input = require("src.core.Input")
 local Logger = require("src.core.Logger")
+local RemoteInput = require("src.net.RemoteInput")
 local Renderer = require("src.render.Renderer")
 local GameViewport = require("src.render.GameViewport")
 local SaveData = require("src.core.SaveData")
@@ -73,6 +74,12 @@ function Game:load(opts)
 
   self.input = Input
   Input:init()
+  -- An opt-in Windows loopback receiver. Remote commands use their own Input
+  -- sources, so this cannot consume or synthesize a physical keyboard key.
+  RemoteInput.start()
+  -- The receiver may have stayed alive while the player was in the launcher.
+  -- A new game never inherits chat commands queued for the prior session.
+  RemoteInput.reset(Input)
 
   self.touchControls = TouchControls
   TouchControls:init()
@@ -261,6 +268,7 @@ function Game:touchSkinHotkey(action, pressed)
   elseif action == "soft_reset" then
     if pressed then
       Input:reset()
+      RemoteInput.reset(Input)
       TouchControls:reset()
       self:returnToTitle()
     end
@@ -306,6 +314,8 @@ function Game:breakLink(err, source)
 end
 
 function Game:step(dt)
+  -- Promote remote commands at the same fixed-step boundary as physical input.
+  RemoteInput.step(self.input)
   -- Tool mods (autoplay, accessibility drivers, input visualizers) act on
   -- the same fixed-step boundary as a physical controller.  Run them before
   -- Input:step promotes queued edges so a button chosen here is visible to
@@ -324,6 +334,7 @@ function Game:step(dt)
   -- chord bookkeeping; those simply never soft reset
   if self.input.softResetStep and self.input:softResetStep() then
     Input:reset()
+    RemoteInput.reset(Input)
     TouchControls:reset()
     self:returnToTitle()
     return
@@ -1086,6 +1097,7 @@ end
 -- parked the player until every direction was re-pressed (#799).
 function Game:focus(f)
   Input:reset()
+  RemoteInput.reset(Input)
   if f then
     Input:reconcile()
     local eng = self:syncEngine()
@@ -1100,6 +1112,7 @@ function Game:visible(v)
     self:onResume()
   else
     Input:reset()
+    RemoteInput.reset(Input)
     TouchControls:reset()
     self:cancelPointers()
   end
@@ -1107,6 +1120,7 @@ end
 
 function Game:onResume()
   Input:reset()
+  RemoteInput.reset(Input)
   Input:reconcile()
   TouchControls:reset()
   self:cancelPointers()
@@ -1126,6 +1140,7 @@ end
 
 function Game:recoverInput(event, joystick)
   Input:reset()
+  RemoteInput.reset(Input)
   -- A hotplug can arrive with no hotplug (macOS Bluetooth re-enumeration),
   -- and the blanket reset above also drops unrelated keyboard holds; put
   -- back whatever is still physically down (#799).
@@ -1547,6 +1562,7 @@ end
 -- been observed to leave Game.load nil after EXIT GAME on Android.
 -- Explicit GPU owners are released below; everything else is just dropped.
 function Game:reset()
+  RemoteInput.reset(Input)
   if self.stack and self.stack.clear then
     pcall(function() self.stack:clear() end)
   end

@@ -1,0 +1,2 @@
+# Local-only TikTok LIVE bridge. It is intentionally not part of the game build.
+TikTokLive==7.0.1

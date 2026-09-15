@@ -302,11 +302,11 @@ jobs:
               Remove-Item $env:UWP_PFX -Force -ErrorAction SilentlyContinue
           }
 
-  # Windows Native AOT TLS dialer. The Mac release runner fuses the win64 zip
-  # from LÖVE's prebuilt binaries and cannot cross-compile this DLL, so build
-  # it here and inject it in the release job before scripts/build.sh win.
+  # Windows Native AOT helpers. The Mac release runner fuses the win64 zip
+  # from LÖVE's prebuilt binaries and cannot cross-compile these DLLs, so build
+  # them here and inject them in the release job before scripts/build.sh win.
   native-tls-win:
-    name: build Windows gen1tls.dll
+    name: build Windows native helper DLLs
     needs: version
     runs-on: windows-2022
     steps:
@@ -326,11 +326,23 @@ jobs:
             throw "gen1tls.dll missing after publish"
           }
           Get-Item "$out/gen1tls.dll" | Format-List Name, Length, LastWriteTime
-      - name: Upload gen1tls.dll
+      - name: Publish gen1remoteinput (win-x64 Native AOT)
+        shell: pwsh
+        run: |
+          $out = "dist/native/win-x64"
+          dotnet publish native/remote_input/Gen1RemoteInput.csproj `
+            -c Release -r win-x64 -o $out
+          if (-not (Test-Path "$out/gen1remoteinput.dll")) {
+            throw "gen1remoteinput.dll missing after publish"
+          }
+          Get-Item "$out/gen1remoteinput.dll" | Format-List Name, Length, LastWriteTime
+      - name: Upload Windows native helper DLLs
         uses: actions/upload-artifact@v7
         with:
           name: gen1tls-win-x64
-          path: dist/native/win-x64/gen1tls.dll
+          path: |
+            dist/native/win-x64/gen1tls.dll
+            dist/native/win-x64/gen1remoteinput.dll
           if-no-files-found: error
           retention-days: 1
 
@@ -524,6 +536,7 @@ jobs:
       - name: Build macOS + Windows + Linux
         env:
           GEN1TLS_DLL: ${{ github.workspace }}/dist/native/win-x64/gen1tls.dll
+          GEN1REMOTEINPUT_DLL: ${{ github.workspace }}/dist/native/win-x64/gen1remoteinput.dll
           SHADERFX_BRIDGE_REQUIRED: "1"
         run: |
           set -euo pipefail
@@ -535,10 +548,16 @@ jobs:
             echo "::error::gen1tls.dll missing at $GEN1TLS_DLL (native-tls-win job)"
             exit 1
           fi
+          if [ ! -f "$GEN1REMOTEINPUT_DLL" ]; then
+            echo "::error::gen1remoteinput.dll missing at $GEN1REMOTEINPUT_DLL (native-tls-win job)"
+            exit 1
+          fi
           scripts/build.sh all --version "${{ needs.version.outputs.version }}" --no-notarize \
             --game-love dist/payload/game.love
           unzip -l dist/win/gen1recomp-win64.zip | grep -F gen1tls.dll \
             || { echo "::error::Windows zip is missing gen1tls.dll"; exit 1; }
+          unzip -l dist/win/gen1recomp-win64.zip | grep -F gen1remoteinput.dll \
+            || { echo "::error::Windows zip is missing gen1remoteinput.dll"; exit 1; }
           unzip -l dist/win/gen1recomp-win64.zip | grep -F librashader_bridge.dll \
             || { echo "::error::Windows zip is missing librashader_bridge.dll"; exit 1; }
 

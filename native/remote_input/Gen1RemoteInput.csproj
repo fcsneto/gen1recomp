@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Windows-only loopback HTTP receiver used by the livestream bridge.
+       Native AOT keeps the runtime dependency out of the distributed game. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <NativeLib>Shared</NativeLib>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <StripSymbols>true</StripSymbols>
+    <AssemblyName>gen1remoteinput</AssemblyName>
+    <RootNamespace>Gen1RemoteInput</RootNamespace>
+  </PropertyGroup>
+</Project>

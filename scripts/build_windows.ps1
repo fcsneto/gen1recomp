@@ -1,4 +1,4 @@
-# Build a Windows win64 Gen1Recomp zip with native TLS (gen1tls.dll).
+# Build a Windows win64 Gen1Recomp zip with native helpers.
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1 [-Version 0.1.77]
@@ -6,7 +6,8 @@
 # Produces:
 #   dist\win\gen1recomp-<version>-windows.zip
 #     gen1recomp.exe   fused LÖVE + game.love
-#     gen1tls.dll      Native AOT TLS dialer (Schannel via SslStream)
+#     gen1tls.dll              Native AOT TLS dialer (Schannel via SslStream)
+#     gen1remoteinput.dll      Loopback-only livestream input receiver
 #
 # Requires: .NET 8 SDK (for Native AOT), Git Bash, and tools/winbuild on PATH
 # for pack_love.sh under Git Bash on Windows.
@@ -46,6 +47,13 @@ if ($LASTEXITCODE -ne 0) { throw "gen1tls publish failed" }
 $TlsDll = Join-Path $NativeOut "gen1tls.dll"
 if (-not (Test-Path $TlsDll)) { throw "gen1tls.dll missing after publish" }
 
+Write-Host "==> building gen1remoteinput.dll (Native AOT)"
+dotnet publish (Join-Path $Root "native\remote_input\Gen1RemoteInput.csproj") `
+  -c Release -r win-x64 -o $NativeOut
+if ($LASTEXITCODE -ne 0) { throw "gen1remoteinput publish failed" }
+$RemoteInputDll = Join-Path $NativeOut "gen1remoteinput.dll"
+if (-not (Test-Path $RemoteInputDll)) { throw "gen1remoteinput.dll missing after publish" }
+
 if (-not (Test-Path $LoveZip) -or (Get-Item $LoveZip).Length -lt 1MB) {
   Write-Host "==> downloading love-11.5-win64.zip"
   Invoke-WebRequest -Uri $LoveUrl -OutFile $LoveZip -UseBasicParsing
@@ -66,6 +74,7 @@ $LoveDir = Get-ChildItem $Extract -Directory | Select-Object -First 1
 Copy-Item (Join-Path $LoveDir.FullName "*.dll") $OutDir
 Copy-Item (Join-Path $LoveDir.FullName "license.txt") $OutDir -ErrorAction SilentlyContinue
 Copy-Item $TlsDll $OutDir
+Copy-Item $RemoteInputDll $OutDir
 
 $out = [IO.File]::Create((Join-Path $OutDir "gen1recomp.exe"))
 try {
@@ -76,13 +85,17 @@ try {
 } finally { $out.Dispose() }
 
 @"
-Gen1Recomp Windows (engine $Version) — native TLS
+Gen1Recomp Windows (engine $Version) — native helpers
 
 gen1tls.dll sits next to gen1recomp.exe and exposes a non-blocking TLS
 client (Windows Schannel via .NET SslStream, Native AOT). Mods can load it
 through LuaJIT FFI, or call love.system.tls* on Android.
 
 Keep gen1tls.dll beside the executable when you redistribute the zip.
+
+gen1remoteinput.dll is the optional, loopback-only HTTP receiver used by a
+livestream bridge. It starts only when POKEPORT_REMOTE_INPUT=1 and a
+POKEPORT_REMOTE_TOKEN is configured.
 "@ | Set-Content (Join-Path $OutDir "README-TLS.txt") -Encoding UTF8
 
 $ZipOut = Join-Path $DistDir "gen1recomp-$Version-windows.zip"
